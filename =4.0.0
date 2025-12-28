@@ -1,0 +1,7 @@
+  WARNING: The script cpuinfo.exe is installed in 'C:\Users\ebgne\AppData\Roaming\Python\Python313\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+  WARNING: The scripts py.test-benchmark.exe and pytest-benchmark.exe are installed in 'C:\Users\ebgne\AppData\Roaming\Python\Python313\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: python.exe -m pip install --upgrade pip

@@ -14,10 +14,16 @@ from typing import Dict, Tuple, Set
 # PLATFORM IDENTIFIERS
 # =============================================================================
 
+# Full platform names (for detection)
 PLATFORM_DRAFTKINGS = "DRAFTKINGS"
 PLATFORM_FANDUEL = "FANDUEL"
 
+# Short platform codes (for DFSEntry.source)
+PLATFORM_DK = "DK"
+PLATFORM_FD = "FD"
+
 VALID_PLATFORMS: Set[str] = {PLATFORM_DRAFTKINGS, PLATFORM_FANDUEL}
+VALID_SOURCES: Set[str] = {PLATFORM_DK, PLATFORM_FD}
 
 
 # =============================================================================

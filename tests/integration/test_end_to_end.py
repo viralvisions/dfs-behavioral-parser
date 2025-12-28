@@ -49,7 +49,7 @@ class TestEndToEnd:
 
         assert metrics.total_entries == 8
         assert metrics.total_invested > Decimal('0')
-        assert Decimal('0') <= metrics.confidence_score <= Decimal('1')
+        assert Decimal('0') <= metrics.recency_score <= Decimal('1')
 
         # Step 5: Detect personas
         detector = PersonaDetector()
@@ -58,7 +58,7 @@ class TestEndToEnd:
         # Verify scores sum to 1.0
         total = persona_score.bettor + persona_score.fantasy + persona_score.stats_nerd
         assert abs(total - Decimal('1')) < Decimal('0.01')
-        assert persona_score.primary_persona in ["BETTOR", "FANTASY", "STATS_NERD"]
+        assert persona_score.primary_persona in ["bettor", "fantasy", "stats_nerd"]
 
         # Step 6: Generate weights
         mapper = WeightMapper()
@@ -72,9 +72,9 @@ class TestEndToEnd:
         return {
             "platform": platform,
             "entries_count": len(entries),
-            "metrics": metrics.to_dict(),
-            "persona_scores": persona_score.to_dict(),
-            "pattern_weights": weights.to_dict(),
+            "metrics": metrics.model_dump(),
+            "persona_scores": persona_score.model_dump(),
+            "pattern_weights": weights.model_dump(),
         }
 
     def test_complete_pipeline_fanduel(self, fixtures_path):
@@ -130,10 +130,10 @@ class TestEndToEnd:
         mapper = WeightMapper()
         weights = mapper.calculate_weights(persona_score)
 
-        # Serialize all outputs
-        metrics_dict = metrics.to_dict()
-        persona_dict = persona_score.to_dict()
-        weights_dict = weights.to_dict()
+        # Serialize all outputs using model_dump (Pydantic v2)
+        metrics_dict = metrics.model_dump(mode='json')
+        persona_dict = persona_score.model_dump(mode='json')
+        weights_dict = weights.model_dump(mode='json')
 
         # Verify all values are JSON-serializable (strings, ints, bools, lists, dicts)
         import json

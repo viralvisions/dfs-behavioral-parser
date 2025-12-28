@@ -169,7 +169,7 @@ class TestContestTypeClassifier:
             entry_fee=Decimal('5.00'),
             winnings=Decimal('0'),
             points=Decimal('100'),
-            source="DRAFTKINGS",
+            source="DK",
             contest_name="NFL $20K Sharpshooter",
         )
 
@@ -190,7 +190,7 @@ class TestContestTypeClassifier:
                 entry_fee=Decimal('5.00'),
                 winnings=Decimal('0'),
                 points=Decimal('100'),
-                source="DRAFTKINGS",
+                source="DK",
                 contest_name="NFL $20K GPP",
             ),
             DFSEntry(
@@ -201,7 +201,7 @@ class TestContestTypeClassifier:
                 entry_fee=Decimal('3.00'),
                 winnings=Decimal('5.40'),
                 points=Decimal('200'),
-                source="DRAFTKINGS",
+                source="DK",
                 contest_name="NBA 50/50",
             ),
         ]

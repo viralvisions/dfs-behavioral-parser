@@ -9,7 +9,7 @@ from typing import Dict
 
 from .base_parser import BaseParser
 from src.utils.constants import (
-    PLATFORM_FANDUEL,
+    PLATFORM_FD,
     FD_COLUMN_ENTRY_ID,
     FD_COLUMN_CONTEST_NAME,
     FD_COLUMN_ENTRY_FEE,
@@ -60,7 +60,7 @@ class FanDuelParser(BaseParser):
 
     def _get_source_name(self) -> str:
         """Return FanDuel platform identifier."""
-        return PLATFORM_FANDUEL
+        return PLATFORM_FD
 
     def _parse_date(self, date_string: str) -> datetime:
         """

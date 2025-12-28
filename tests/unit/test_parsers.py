@@ -177,7 +177,7 @@ class TestDraftKingsParser:
         entry = entries[0]
 
         assert entry.entry_id == "DK001"
-        assert entry.source == "DRAFTKINGS"
+        assert entry.source == "DK"
         assert entry.sport == "NFL"
         assert entry.entry_fee == Decimal('5.00')
         assert entry.winnings == Decimal('10.00')
@@ -223,7 +223,7 @@ class TestDraftKingsParser:
         entries = parser.parse(fixture_path)
 
         assert len(entries) == 8
-        assert all(e.source == "DRAFTKINGS" for e in entries)
+        assert all(e.source == "DK" for e in entries)
 
     def test_missing_columns_raises(self, parser):
         """Test that missing required columns raises."""
@@ -267,7 +267,7 @@ class TestFanDuelParser:
         entry = entries[0]
 
         assert entry.entry_id == "FD001"
-        assert entry.source == "FANDUEL"
+        assert entry.source == "FD"
         assert entry.sport == "NFL"
         assert entry.entry_fee == Decimal('25.00')
         assert entry.winnings == Decimal('50.00')
@@ -283,7 +283,7 @@ class TestFanDuelParser:
         entries = parser.parse(fixture_path)
 
         assert len(entries) == 6
-        assert all(e.source == "FANDUEL" for e in entries)
+        assert all(e.source == "FD" for e in entries)
 
 
 # =============================================================================
@@ -327,3 +327,121 @@ class TestCurrencyCleaning:
         """Test that invalid value raises."""
         with pytest.raises(ValueError, match="Cannot convert"):
             BaseParser._clean_currency("not money")
+
+
+# =============================================================================
+# DFSHistoryParser Tests
+# =============================================================================
+
+class TestDFSHistoryParser:
+    """Tests for unified DFS history parser."""
+
+    def test_parse_draftkings_csv(self):
+        """Test parsing DraftKings CSV via unified parser."""
+        from src.parsers.dfs_history_parser import DFSHistoryParser
+
+        csv_content = (
+            "Entry ID,Contest Name,Entry Fee,Winnings,Points,Sport,Date Entered\n"
+            "1,NFL $20K GPP,$5.00,$10.00,150.5,NFL,2024-09-15 13:00:00\n"
+        )
+
+        parser = DFSHistoryParser()
+        entries = parser.parse_csv_string(csv_content)
+
+        assert len(entries) == 1
+        assert entries[0].source == "DK"
+        assert entries[0].contest_type == "GPP"
+
+    def test_parse_fanduel_csv(self):
+        """Test parsing FanDuel CSV via unified parser."""
+        from src.parsers.dfs_history_parser import DFSHistoryParser
+
+        csv_content = (
+            "Entry Id,Contest,Entry Fee,Winnings,Points,Sport,Entered\n"
+            "1,NBA 50/50,$3.00,$5.40,200.0,NBA,2024-10-01 19:00:00\n"
+        )
+
+        parser = DFSHistoryParser()
+        entries = parser.parse_csv_string(csv_content)
+
+        assert len(entries) == 1
+        assert entries[0].source == "FD"
+        assert entries[0].contest_type == "CASH"
+
+    def test_parse_unknown_format_raises(self):
+        """Test that unknown CSV format raises error."""
+        from src.parsers.dfs_history_parser import DFSHistoryParser
+
+        csv_content = "id,name,value\n1,test,5\n"
+
+        parser = DFSHistoryParser()
+        with pytest.raises(ValueError, match="Unknown CSV format"):
+            parser.parse_csv_string(csv_content)
+
+    def test_parse_file(self, tmp_path):
+        """Test parsing from file path."""
+        from src.parsers.dfs_history_parser import DFSHistoryParser
+
+        csv_file = tmp_path / "test.csv"
+        csv_file.write_text(
+            "Entry ID,Contest Name,Entry Fee,Winnings,Points,Sport,Date Entered\n"
+            "1,NFL Tournament,$5.00,$0.00,100,NFL,2024-09-15\n"
+        )
+
+        parser = DFSHistoryParser()
+        entries = parser.parse_file(str(csv_file))
+
+        assert len(entries) == 1
+        assert entries[0].source == "DK"
+
+
+# =============================================================================
+# CSVValidator Tests
+# =============================================================================
+
+class TestCSVValidator:
+    """Tests for CSV validator utility."""
+
+    def test_validate_size_passes(self):
+        """Test size validation passes for small files."""
+        from src.utils.csv_validator import CSVValidator
+
+        validator = CSVValidator()
+        # Should not raise
+        validator.validate_size("small file content")
+
+    def test_validate_size_fails(self):
+        """Test size validation fails for large files."""
+        from src.utils.csv_validator import CSVValidator
+
+        validator = CSVValidator()
+        large_content = "x" * (11 * 1024 * 1024)  # 11MB
+
+        with pytest.raises(ValueError, match="exceeds 10MB"):
+            validator.validate_size(large_content)
+
+    def test_detect_platform_draftkings(self):
+        """Test platform detection for DraftKings."""
+        from src.utils.csv_validator import CSVValidator
+
+        validator = CSVValidator()
+        csv_content = "Entry ID,Contest Name,Entry Fee,Winnings,Sport,Date Entered\n"
+
+        assert validator.detect_platform(csv_content) == "DRAFTKINGS"
+
+    def test_detect_platform_fanduel(self):
+        """Test platform detection for FanDuel."""
+        from src.utils.csv_validator import CSVValidator
+
+        validator = CSVValidator()
+        csv_content = "Entry Id,Contest,Entry Fee,Winnings,Sport,Entered\n"
+
+        assert validator.detect_platform(csv_content) == "FANDUEL"
+
+    def test_sanitize_empty(self):
+        """Test sanitize returns empty for empty input."""
+        from src.utils.csv_validator import CSVValidator
+
+        validator = CSVValidator()
+        assert validator.sanitize_field("") == ""
+        assert validator.sanitize_field(None) is None

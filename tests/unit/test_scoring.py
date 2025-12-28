@@ -37,7 +37,7 @@ def sample_entries():
             entry_fee=Decimal('5.00'),
             winnings=Decimal('0.00'),
             points=Decimal('142.50'),
-            source="DRAFTKINGS",
+            source="DK",
             contest_name="NFL $20K GPP",
         ),
         DFSEntry(
@@ -48,7 +48,7 @@ def sample_entries():
             entry_fee=Decimal('25.00'),
             winnings=Decimal('75.00'),
             points=Decimal('178.20'),
-            source="DRAFTKINGS",
+            source="DK",
             contest_name="NFL Sunday Million",
         ),
         DFSEntry(
@@ -59,7 +59,7 @@ def sample_entries():
             entry_fee=Decimal('3.00'),
             winnings=Decimal('5.40'),
             points=Decimal('245.80'),
-            source="DRAFTKINGS",
+            source="DK",
             contest_name="NBA 50/50",
         ),
         DFSEntry(
@@ -70,7 +70,7 @@ def sample_entries():
             entry_fee=Decimal('5.00'),
             winnings=Decimal('9.00'),
             points=Decimal('312.10'),
-            source="DRAFTKINGS",
+            source="DK",
             contest_name="MLB H2H",
         ),
         DFSEntry(
@@ -81,7 +81,7 @@ def sample_entries():
             entry_fee=Decimal('10.00'),
             winnings=Decimal('0.00'),
             points=Decimal('42.50'),
-            source="DRAFTKINGS",
+            source="DK",
             contest_name="NHL $50K GTD",
         ),
     ]
@@ -101,7 +101,7 @@ def bettor_entries():
             entry_fee=Decimal('25.00'),  # Higher stakes
             winnings=Decimal('0.00'),
             points=Decimal('150.00'),
-            source="DRAFTKINGS",
+            source="DK",
             contest_name=f"NFL GPP {i}",
         )
         for i in range(10)
@@ -124,7 +124,7 @@ def stats_nerd_entries():
             entry_fee=Decimal(str((i % 5) + 1)),  # Varied stakes $1-$5
             winnings=Decimal('0.00'),
             points=Decimal('100.00'),
-            source="DRAFTKINGS",
+            source="DK",
             contest_name=f"{sport} Contest {i}",
         ))
     return entries
@@ -153,7 +153,7 @@ class TestBehavioralScorer:
 
         assert metrics.total_entries == 0
         assert metrics.total_invested == Decimal('0')
-        assert metrics.confidence_score == Decimal('0')
+        assert metrics.recency_score == Decimal('0')
 
     def test_entries_by_sport(self, sample_entries):
         """Test sport counting."""
@@ -215,12 +215,12 @@ class TestBehavioralScorer:
         # Only NFL = no diversity
         assert float(metrics.sport_diversity) == 0.0
 
-    def test_confidence_score_range(self, sample_entries):
-        """Test confidence score is in valid range."""
+    def test_recency_score_range(self, sample_entries):
+        """Test recency score is in valid range."""
         scorer = BehavioralScorer()
         metrics = scorer.calculate_metrics(sample_entries)
 
-        assert Decimal('0') <= metrics.confidence_score <= Decimal('1')
+        assert Decimal('0') <= metrics.recency_score <= Decimal('1')
 
     def test_most_active_day(self, sample_entries):
         """Test most active day calculation."""
@@ -294,9 +294,9 @@ class TestPersonaDetector:
 
         # Primary should be the one with highest score
         primary = persona_score.primary_persona
-        assert primary in ["BETTOR", "FANTASY", "STATS_NERD"]
+        assert primary in ["bettor", "fantasy", "stats_nerd"]
 
-        if primary == "BETTOR":
+        if primary == "bettor":
             assert persona_score.bettor >= persona_score.fantasy
             assert persona_score.bettor >= persona_score.stats_nerd
 
@@ -418,7 +418,7 @@ class TestScoringIntegration:
 
         # Step 2: Detect personas
         persona_score = score_personas(metrics)
-        assert persona_score.primary_persona in ["BETTOR", "FANTASY", "STATS_NERD"]
+        assert persona_score.primary_persona in ["bettor", "fantasy", "stats_nerd"]
 
         # Step 3: Calculate weights
         weights = calculate_weights(persona_score)

@@ -9,7 +9,7 @@ from typing import Dict
 
 from .base_parser import BaseParser
 from src.utils.constants import (
-    PLATFORM_DRAFTKINGS,
+    PLATFORM_DK,
     DK_COLUMN_ENTRY_ID,
     DK_COLUMN_CONTEST_NAME,
     DK_COLUMN_ENTRY_FEE,
@@ -57,7 +57,7 @@ class DraftKingsParser(BaseParser):
 
     def _get_source_name(self) -> str:
         """Return DraftKings platform identifier."""
-        return PLATFORM_DRAFTKINGS
+        return PLATFORM_DK
 
     def _parse_date(self, date_string: str) -> datetime:
         """

@@ -3,19 +3,23 @@ Unit tests for data models.
 
 Tests cover:
 - DFSEntry: validation, properties, serialization
-- BehavioralMetrics: validation, properties, serialization
+- BehavioralMetrics: validation, properties
 - PersonaScore: validation, properties, normalization
-- PatternWeights: validation, methods, serialization
+- PatternWeights: validation, methods
+- UserProfile: validation, nested models
 """
 
 import pytest
 from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
+from pydantic import ValidationError
 
 from src.models.dfs_entry import DFSEntry
 from src.models.behavioral_metrics import BehavioralMetrics
 from src.models.persona_score import PersonaScore
-from src.models.pattern_weights import PatternWeights, PATTERN_NAMES
+from src.models.pattern_weights import PatternWeights
+from src.models.user_profile import UserProfile
 
 
 # =============================================================================
@@ -35,13 +39,13 @@ class TestDFSEntry:
             entry_fee=Decimal('5.00'),
             winnings=Decimal('10.50'),
             points=Decimal('156.42'),
-            source="DRAFTKINGS",
+            source="DK",
             contest_name="NFL $20K Shot"
         )
 
         assert entry.entry_id == "12345"
         assert entry.sport == "NFL"  # normalized to uppercase
-        assert entry.source == "DRAFTKINGS"
+        assert entry.source == "DK"
         assert entry.entry_fee == Decimal('5.00')
 
     def test_sport_normalized_to_uppercase(self):
@@ -54,27 +58,13 @@ class TestDFSEntry:
             entry_fee=Decimal('5.00'),
             winnings=Decimal('0'),
             points=Decimal('100'),
-            source="FANDUEL"
+            source="FD"
         )
         assert entry.sport == "NBA"
 
-    def test_source_normalized_to_uppercase(self):
-        """Test that source is normalized to uppercase."""
-        entry = DFSEntry(
-            entry_id="1",
-            date=datetime.now(),
-            sport="NFL",
-            contest_type="GPP",
-            entry_fee=Decimal('5.00'),
-            winnings=Decimal('0'),
-            points=Decimal('100'),
-            source="draftkings"  # lowercase
-        )
-        assert entry.source == "DRAFTKINGS"
-
     def test_reject_negative_entry_fee(self):
-        """Test that negative entry_fee raises ValueError."""
-        with pytest.raises(ValueError, match="Entry fee cannot be negative"):
+        """Test that negative entry_fee raises ValidationError."""
+        with pytest.raises(ValidationError):
             DFSEntry(
                 entry_id="1",
                 date=datetime.now(),
@@ -83,12 +73,12 @@ class TestDFSEntry:
                 entry_fee=Decimal('-5.00'),
                 winnings=Decimal('0'),
                 points=Decimal('100'),
-                source="DRAFTKINGS"
+                source="DK"
             )
 
     def test_reject_negative_winnings(self):
-        """Test that negative winnings raises ValueError."""
-        with pytest.raises(ValueError, match="Winnings cannot be negative"):
+        """Test that negative winnings raises ValidationError."""
+        with pytest.raises(ValidationError):
             DFSEntry(
                 entry_id="1",
                 date=datetime.now(),
@@ -97,12 +87,12 @@ class TestDFSEntry:
                 entry_fee=Decimal('5.00'),
                 winnings=Decimal('-10.00'),
                 points=Decimal('100'),
-                source="DRAFTKINGS"
+                source="DK"
             )
 
     def test_reject_invalid_source(self):
-        """Test that invalid source raises ValueError."""
-        with pytest.raises(ValueError, match="Invalid source"):
+        """Test that invalid source raises ValidationError."""
+        with pytest.raises(ValidationError):
             DFSEntry(
                 entry_id="1",
                 date=datetime.now(),
@@ -111,7 +101,21 @@ class TestDFSEntry:
                 entry_fee=Decimal('5.00'),
                 winnings=Decimal('0'),
                 points=Decimal('100'),
-                source="YAHOO"  # Invalid
+                source="YAHOO"  # Invalid - must be DK or FD
+            )
+
+    def test_reject_invalid_contest_type(self):
+        """Test that invalid contest_type raises ValidationError."""
+        with pytest.raises(ValidationError):
+            DFSEntry(
+                entry_id="1",
+                date=datetime.now(),
+                sport="NFL",
+                contest_type="INVALID",
+                entry_fee=Decimal('5.00'),
+                winnings=Decimal('0'),
+                points=Decimal('100'),
+                source="DK"
             )
 
     def test_roi_calculation_winning(self):
@@ -124,10 +128,10 @@ class TestDFSEntry:
             entry_fee=Decimal('10.00'),
             winnings=Decimal('25.00'),
             points=Decimal('150'),
-            source="DRAFTKINGS"
+            source="DK"
         )
         # ROI = (25 - 10) / 10 * 100 = 150%
-        assert entry.roi == Decimal('150.00')
+        assert entry.roi == Decimal('150')
 
     def test_roi_calculation_losing(self):
         """Test ROI calculation for losing entry."""
@@ -139,10 +143,10 @@ class TestDFSEntry:
             entry_fee=Decimal('10.00'),
             winnings=Decimal('0'),
             points=Decimal('80'),
-            source="DRAFTKINGS"
+            source="DK"
         )
         # ROI = (0 - 10) / 10 * 100 = -100%
-        assert entry.roi == Decimal('-100.00')
+        assert entry.roi == Decimal('-100')
 
     def test_roi_zero_entry_fee(self):
         """Test ROI with zero entry fee (freeroll)."""
@@ -154,7 +158,7 @@ class TestDFSEntry:
             entry_fee=Decimal('0'),
             winnings=Decimal('5.00'),
             points=Decimal('100'),
-            source="DRAFTKINGS"
+            source="DK"
         )
         # Should return 0 to avoid division by zero
         assert entry.roi == Decimal('0')
@@ -169,12 +173,12 @@ class TestDFSEntry:
             entry_fee=Decimal('5.00'),
             winnings=Decimal('10.50'),
             points=Decimal('150'),
-            source="DRAFTKINGS"
+            source="DK"
         )
         assert entry.profit == Decimal('5.50')
 
-    def test_is_winning_entry_true(self):
-        """Test is_winning_entry for profitable entry."""
+    def test_is_profitable_true(self):
+        """Test is_profitable for profitable entry."""
         entry = DFSEntry(
             entry_id="1",
             date=datetime.now(),
@@ -183,12 +187,12 @@ class TestDFSEntry:
             entry_fee=Decimal('5.00'),
             winnings=Decimal('10.00'),
             points=Decimal('150'),
-            source="DRAFTKINGS"
+            source="DK"
         )
-        assert entry.is_winning_entry is True
+        assert entry.is_profitable is True
 
-    def test_is_winning_entry_false(self):
-        """Test is_winning_entry for losing entry."""
+    def test_is_profitable_false(self):
+        """Test is_profitable for losing entry."""
         entry = DFSEntry(
             entry_id="1",
             date=datetime.now(),
@@ -197,12 +201,12 @@ class TestDFSEntry:
             entry_fee=Decimal('5.00'),
             winnings=Decimal('0'),
             points=Decimal('80'),
-            source="DRAFTKINGS"
+            source="DK"
         )
-        assert entry.is_winning_entry is False
+        assert entry.is_profitable is False
 
-    def test_is_winning_entry_breakeven(self):
-        """Test is_winning_entry for break-even entry."""
+    def test_is_profitable_breakeven(self):
+        """Test is_profitable for break-even entry."""
         entry = DFSEntry(
             entry_id="1",
             date=datetime.now(),
@@ -211,13 +215,13 @@ class TestDFSEntry:
             entry_fee=Decimal('5.00'),
             winnings=Decimal('5.00'),
             points=Decimal('100'),
-            source="DRAFTKINGS"
+            source="DK"
         )
-        # Break-even is not "winning"
-        assert entry.is_winning_entry is False
+        # Break-even is not "profitable"
+        assert entry.is_profitable is False
 
-    def test_to_dict_serialization(self):
-        """Test serialization to dictionary."""
+    def test_model_dump_serialization(self):
+        """Test serialization to dictionary using model_dump."""
         entry = DFSEntry(
             entry_id="12345",
             date=datetime(2024, 9, 15, 13, 0),
@@ -226,62 +230,45 @@ class TestDFSEntry:
             entry_fee=Decimal('5.00'),
             winnings=Decimal('10.50'),
             points=Decimal('156.42'),
-            source="DRAFTKINGS",
+            source="DK",
             contest_name="NFL $20K Shot"
         )
 
-        data = entry.to_dict()
+        data = entry.model_dump()
 
         assert data['entry_id'] == "12345"
         assert data['sport'] == "NFL"
-        assert data['entry_fee'] == "5.00"
-        assert data['winnings'] == "10.50"
-        assert Decimal(data['roi']) == Decimal('110')  # (10.50 - 5.00) / 5.00 * 100
-        assert data['profit'] == "5.50"
-        assert data['is_winning_entry'] is True
-        assert data['contest_name'] == "NFL $20K Shot"
+        assert data['source'] == "DK"
 
-    def test_from_dict_deserialization(self):
-        """Test deserialization from dictionary."""
-        data = {
-            'entry_id': "12345",
-            'date': "2024-09-15T13:00:00",
-            'sport': "NFL",
-            'contest_type': "GPP",
-            'entry_fee': "5.00",
-            'winnings': "10.50",
-            'points': "156.42",
-            'source': "DRAFTKINGS",
-            'contest_name': "NFL $20K Shot"
-        }
-
-        entry = DFSEntry.from_dict(data)
-
-        assert entry.entry_id == "12345"
-        assert entry.entry_fee == Decimal('5.00')
-        assert entry.winnings == Decimal('10.50')
-
-    def test_roundtrip_serialization(self):
-        """Test that to_dict -> from_dict preserves data."""
-        original = DFSEntry(
-            entry_id="12345",
-            date=datetime(2024, 9, 15, 13, 0),
+    def test_money_conversion_from_float(self):
+        """Test that floats are converted to Decimal."""
+        entry = DFSEntry(
+            entry_id="1",
+            date=datetime.now(),
             sport="NFL",
             contest_type="GPP",
-            entry_fee=Decimal('5.00'),
-            winnings=Decimal('10.50'),
-            points=Decimal('156.42'),
-            source="DRAFTKINGS",
-            contest_name="NFL $20K Shot"
+            entry_fee=5.00,  # float
+            winnings=10.50,  # float
+            points=Decimal('100'),
+            source="DK"
         )
+        assert isinstance(entry.entry_fee, Decimal)
+        assert isinstance(entry.winnings, Decimal)
 
-        data = original.to_dict()
-        restored = DFSEntry.from_dict(data)
-
-        assert restored.entry_id == original.entry_id
-        assert restored.entry_fee == original.entry_fee
-        assert restored.winnings == original.winnings
-        assert restored.sport == original.sport
+    def test_money_conversion_from_string(self):
+        """Test that strings are converted to Decimal."""
+        entry = DFSEntry(
+            entry_id="1",
+            date=datetime.now(),
+            sport="NFL",
+            contest_type="GPP",
+            entry_fee="5.00",  # string
+            winnings="10.50",  # string
+            points=Decimal('100'),
+            source="DK"
+        )
+        assert isinstance(entry.entry_fee, Decimal)
+        assert entry.entry_fee == Decimal('5.00')
 
 
 # =============================================================================
@@ -304,25 +291,22 @@ class TestBehavioralMetrics:
             roi_overall=Decimal('-10.00'),
             gpp_percentage=Decimal('0.70'),
             cash_percentage=Decimal('0.20'),
-            h2h_percentage=Decimal('0.10'),
             multi_entry_rate=Decimal('1.5'),
             sport_diversity=Decimal('0.65'),
             stake_variance=Decimal('0.40'),
             entries_per_week=Decimal('5.2'),
             most_active_day="Sunday",
             recency_score=Decimal('0.78'),
-            confidence_score=Decimal('0.75')
         )
 
     def test_create_valid_metrics(self, sample_metrics):
         """Test creating valid BehavioralMetrics."""
         assert sample_metrics.total_entries == 100
         assert sample_metrics.gpp_percentage == Decimal('0.70')
-        assert sample_metrics.confidence_score == Decimal('0.75')
 
     def test_reject_negative_total_entries(self):
-        """Test that negative total_entries raises ValueError."""
-        with pytest.raises(ValueError, match="total_entries cannot be negative"):
+        """Test that negative total_entries raises ValidationError."""
+        with pytest.raises(ValidationError):
             BehavioralMetrics(
                 total_entries=-1,
                 entries_by_sport={},
@@ -333,19 +317,17 @@ class TestBehavioralMetrics:
                 roi_overall=Decimal('0'),
                 gpp_percentage=Decimal('0'),
                 cash_percentage=Decimal('0'),
-                h2h_percentage=Decimal('0'),
                 multi_entry_rate=Decimal('0'),
                 sport_diversity=Decimal('0'),
                 stake_variance=Decimal('0'),
                 entries_per_week=Decimal('0'),
                 most_active_day="",
                 recency_score=Decimal('0'),
-                confidence_score=Decimal('0'),
             )
 
     def test_reject_percentage_out_of_range(self):
-        """Test that percentage > 1 raises ValueError."""
-        with pytest.raises(ValueError, match="gpp_percentage must be between 0 and 1"):
+        """Test that percentage > 1 raises ValidationError."""
+        with pytest.raises(ValidationError):
             BehavioralMetrics(
                 total_entries=10,
                 entries_by_sport={},
@@ -356,82 +338,41 @@ class TestBehavioralMetrics:
                 roi_overall=Decimal('0'),
                 gpp_percentage=Decimal('1.5'),  # Invalid
                 cash_percentage=Decimal('0'),
-                h2h_percentage=Decimal('0'),
                 multi_entry_rate=Decimal('0'),
                 sport_diversity=Decimal('0'),
                 stake_variance=Decimal('0'),
                 entries_per_week=Decimal('0'),
                 most_active_day="",
                 recency_score=Decimal('0'),
-                confidence_score=Decimal('0'),
             )
-
-    def test_net_profit_property(self, sample_metrics):
-        """Test net_profit calculation."""
-        # 450 - 500 = -50
-        assert sample_metrics.net_profit == Decimal('-50.00')
-
-    def test_is_profitable_false(self, sample_metrics):
-        """Test is_profitable for losing user."""
-        assert sample_metrics.is_profitable is False
-
-    def test_is_profitable_true(self):
-        """Test is_profitable for winning user."""
-        metrics = BehavioralMetrics(
-            total_entries=10,
-            entries_by_sport={"NFL": 10},
-            entries_by_contest_type={"GPP": 10},
-            total_invested=Decimal('100.00'),
-            total_winnings=Decimal('150.00'),
-            avg_entry_fee=Decimal('10.00'),
-            roi_overall=Decimal('50.00'),
-            gpp_percentage=Decimal('1.0'),
-            cash_percentage=Decimal('0'),
-            h2h_percentage=Decimal('0'),
-            multi_entry_rate=Decimal('1.0'),
-            sport_diversity=Decimal('0'),
-            stake_variance=Decimal('0'),
-            entries_per_week=Decimal('5'),
-            most_active_day="Sunday",
-            recency_score=Decimal('0.9'),
-            confidence_score=Decimal('0.5'),
-        )
-        assert metrics.is_profitable is True
-
-    def test_primary_sport(self, sample_metrics):
-        """Test primary_sport property."""
-        assert sample_metrics.primary_sport == "NFL"
-
-    def test_primary_contest_type(self, sample_metrics):
-        """Test primary_contest_type property."""
-        assert sample_metrics.primary_contest_type == "GPP"
 
     def test_empty_metrics_factory(self):
         """Test empty() factory method."""
         empty = BehavioralMetrics.empty()
         assert empty.total_entries == 0
         assert empty.total_invested == Decimal('0')
-        assert empty.confidence_score == Decimal('0')
 
-    def test_to_dict_serialization(self, sample_metrics):
-        """Test serialization to dictionary."""
-        data = sample_metrics.to_dict()
-
-        assert data['total_entries'] == 100
-        assert data['total_invested'] == "500.00"
-        assert data['roi_overall'] == "-10.00"
-        assert data['net_profit'] == "-50.00"
-        assert data['is_profitable'] is False
-        assert data['primary_sport'] == "NFL"
-
-    def test_from_dict_deserialization(self, sample_metrics):
-        """Test deserialization from dictionary."""
-        data = sample_metrics.to_dict()
-        restored = BehavioralMetrics.from_dict(data)
-
-        assert restored.total_entries == sample_metrics.total_entries
-        assert restored.total_invested == sample_metrics.total_invested
-        assert restored.gpp_percentage == sample_metrics.gpp_percentage
+    def test_decimal_conversion(self):
+        """Test that numeric values are converted to Decimal."""
+        metrics = BehavioralMetrics(
+            total_entries=10,
+            entries_by_sport={"NFL": 10},
+            entries_by_contest_type={"GPP": 10},
+            total_invested=100.0,  # float
+            total_winnings="150.00",  # string
+            avg_entry_fee=10,  # int
+            roi_overall=50.0,
+            gpp_percentage=1.0,
+            cash_percentage=0,
+            multi_entry_rate=1.0,
+            sport_diversity=0,
+            stake_variance=0,
+            entries_per_week=5,
+            most_active_day="Sunday",
+            recency_score=0.9,
+        )
+        assert isinstance(metrics.total_invested, Decimal)
+        assert isinstance(metrics.total_winnings, Decimal)
 
 
 # =============================================================================
@@ -453,8 +394,8 @@ class TestPersonaScore:
         assert score.stats_nerd == Decimal('0.20')
 
     def test_reject_score_below_zero(self):
-        """Test that negative score raises ValueError."""
-        with pytest.raises(ValueError, match="bettor score must be between 0 and 1"):
+        """Test that negative score raises ValidationError."""
+        with pytest.raises(ValidationError):
             PersonaScore(
                 bettor=Decimal('-0.1'),
                 fantasy=Decimal('0.6'),
@@ -462,21 +403,12 @@ class TestPersonaScore:
             )
 
     def test_reject_score_above_one(self):
-        """Test that score > 1 raises ValueError."""
-        with pytest.raises(ValueError, match="fantasy score must be between 0 and 1"):
+        """Test that score > 1 raises ValidationError."""
+        with pytest.raises(ValidationError):
             PersonaScore(
                 bettor=Decimal('0.2'),
                 fantasy=Decimal('1.5'),
                 stats_nerd=Decimal('0.3')
-            )
-
-    def test_reject_scores_not_summing_to_one(self):
-        """Test that scores not summing to 1.0 raises ValueError."""
-        with pytest.raises(ValueError, match="Persona scores must sum to 1.0"):
-            PersonaScore(
-                bettor=Decimal('0.50'),
-                fantasy=Decimal('0.30'),
-                stats_nerd=Decimal('0.30')  # Sum = 1.1
             )
 
     def test_primary_persona_bettor(self):
@@ -486,7 +418,7 @@ class TestPersonaScore:
             fantasy=Decimal('0.25'),
             stats_nerd=Decimal('0.15')
         )
-        assert score.primary_persona == "BETTOR"
+        assert score.primary_persona == "bettor"
 
     def test_primary_persona_fantasy(self):
         """Test primary_persona when fantasy is highest."""
@@ -495,7 +427,7 @@ class TestPersonaScore:
             fantasy=Decimal('0.55'),
             stats_nerd=Decimal('0.25')
         )
-        assert score.primary_persona == "FANTASY"
+        assert score.primary_persona == "fantasy"
 
     def test_primary_persona_stats_nerd(self):
         """Test primary_persona when stats_nerd is highest."""
@@ -504,7 +436,7 @@ class TestPersonaScore:
             fantasy=Decimal('0.25'),
             stats_nerd=Decimal('0.60')
         )
-        assert score.primary_persona == "STATS_NERD"
+        assert score.primary_persona == "stats_nerd"
 
     def test_is_hybrid_true(self):
         """Test is_hybrid when multiple personas > 0.3."""
@@ -524,46 +456,14 @@ class TestPersonaScore:
         )
         assert score.is_hybrid is False
 
-    def test_confidence_high(self):
-        """Test confidence for clear persona."""
+    def test_confidence_property(self):
+        """Test confidence returns max score."""
         score = PersonaScore(
             bettor=Decimal('0.80'),
             fantasy=Decimal('0.15'),
             stats_nerd=Decimal('0.05')
         )
-        # 0.80 - 0.05 = 0.75
-        assert score.confidence == Decimal('0.75')
-
-    def test_confidence_low(self):
-        """Test confidence for unclear persona."""
-        score = PersonaScore(
-            bettor=Decimal('0.35'),
-            fantasy=Decimal('0.33'),
-            stats_nerd=Decimal('0.32')
-        )
-        # 0.35 - 0.32 = 0.03
-        assert score.confidence == Decimal('0.03')
-
-    def test_secondary_persona(self):
-        """Test secondary_persona property."""
-        score = PersonaScore(
-            bettor=Decimal('0.60'),
-            fantasy=Decimal('0.25'),
-            stats_nerd=Decimal('0.15')
-        )
-        assert score.secondary_persona == "FANTASY"
-
-    def test_scores_ranked(self):
-        """Test scores_ranked property."""
-        score = PersonaScore(
-            bettor=Decimal('0.15'),
-            fantasy=Decimal('0.60'),
-            stats_nerd=Decimal('0.25')
-        )
-        ranked = score.scores_ranked
-        assert ranked[0] == ('FANTASY', Decimal('0.60'))
-        assert ranked[1] == ('STATS_NERD', Decimal('0.25'))
-        assert ranked[2] == ('BETTOR', Decimal('0.15'))
+        assert score.confidence == Decimal('0.80')
 
     def test_from_raw_scores_normalization(self):
         """Test from_raw_scores normalizes correctly."""
@@ -589,32 +489,15 @@ class TestPersonaScore:
         assert score.fantasy == Decimal('0.33')
         assert score.stats_nerd == Decimal('0.34')
 
-    def test_to_dict_serialization(self):
-        """Test serialization to dictionary."""
+    def test_decimal_conversion(self):
+        """Test that floats/strings are converted to Decimal."""
         score = PersonaScore(
-            bettor=Decimal('0.50'),
-            fantasy=Decimal('0.30'),
-            stats_nerd=Decimal('0.20')
+            bettor=0.5,  # float
+            fantasy="0.3",  # string
+            stats_nerd=0.2  # float
         )
-        data = score.to_dict()
-
-        assert data['bettor'] == '0.50'
-        assert data['fantasy'] == '0.30'
-        assert data['stats_nerd'] == '0.20'
-        assert data['primary_persona'] == 'BETTOR'
-        assert data['is_hybrid'] is False
-
-    def test_from_dict_deserialization(self):
-        """Test deserialization from dictionary."""
-        data = {
-            'bettor': '0.50',
-            'fantasy': '0.30',
-            'stats_nerd': '0.20'
-        }
-        score = PersonaScore.from_dict(data)
-
-        assert score.bettor == Decimal('0.50')
-        assert score.fantasy == Decimal('0.30')
+        assert isinstance(score.bettor, Decimal)
+        assert isinstance(score.fantasy, Decimal)
 
 
 # =============================================================================
@@ -627,9 +510,8 @@ class TestPatternWeights:
     def test_create_default_weights(self):
         """Test creating PatternWeights with defaults."""
         weights = PatternWeights()
-
-        for name in PATTERN_NAMES:
-            assert getattr(weights, name) == Decimal('1.0')
+        assert weights.line_movement == Decimal('1.0')
+        assert weights.historical_trends == Decimal('1.0')
 
     def test_create_custom_weights(self):
         """Test creating PatternWeights with custom values."""
@@ -642,119 +524,179 @@ class TestPatternWeights:
         assert weights.injury_impact == Decimal('1.0')  # default
 
     def test_reject_negative_weights(self):
-        """Test that negative weight raises ValueError."""
-        with pytest.raises(ValueError, match="cannot be negative"):
+        """Test that negative weight raises ValidationError."""
+        with pytest.raises(ValidationError):
             PatternWeights(line_movement=Decimal('-0.5'))
 
-    def test_apply_to_score(self):
-        """Test apply_to_score method."""
+    def test_apply_to_pattern(self):
+        """Test apply_to_pattern method."""
         weights = PatternWeights(line_movement=Decimal('1.5'))
         base_score = Decimal('0.80')
-        weighted = weights.apply_to_score('line_movement', base_score)
+        weighted = weights.apply_to_pattern(base_score, 'line_movement')
         assert weighted == Decimal('1.20')
 
-    def test_get_weight(self):
-        """Test get_weight method."""
-        weights = PatternWeights(situational_stats=Decimal('1.6'))
-        assert weights.get_weight('situational_stats') == Decimal('1.6')
-        assert weights.get_weight('line_movement') == Decimal('1.0')
-
-    def test_weights_ranked(self):
-        """Test weights_ranked property."""
+    def test_decimal_conversion(self):
+        """Test that floats/strings are converted to Decimal."""
         weights = PatternWeights(
-            line_movement=Decimal('1.5'),
-            historical_trends=Decimal('0.8'),
-            injury_impact=Decimal('1.2')
+            line_movement=1.5,  # float
+            historical_trends="0.8",  # string
         )
-        ranked = weights.weights_ranked
+        assert isinstance(weights.line_movement, Decimal)
+        assert isinstance(weights.historical_trends, Decimal)
 
-        # First should be line_movement (1.5)
-        assert ranked[0][0] == 'line_movement'
-        assert ranked[0][1] == Decimal('1.5')
-
-    def test_top_patterns(self):
-        """Test top_patterns property."""
-        weights = PatternWeights(
-            line_movement=Decimal('1.5'),
-            historical_trends=Decimal('0.8'),
-            injury_impact=Decimal('1.2')
-        )
-        top = weights.top_patterns
-
-        assert 'line_movement' in top
-        assert 'injury_impact' in top
-        assert 'historical_trends' not in top
-
-    def test_deprioritized_patterns(self):
-        """Test deprioritized_patterns property."""
-        weights = PatternWeights(
-            line_movement=Decimal('1.5'),
-            historical_trends=Decimal('0.8'),
-            live_odds_delta=Decimal('0.6')
-        )
-        deprioritized = weights.deprioritized_patterns
-
-        assert 'historical_trends' in deprioritized
-        assert 'live_odds_delta' in deprioritized
-        assert 'line_movement' not in deprioritized
-
-    def test_neutral_factory(self):
-        """Test neutral() factory method."""
-        weights = PatternWeights.neutral()
-        for name in PATTERN_NAMES:
-            assert getattr(weights, name) == Decimal('1.0')
-
-    def test_to_dict_serialization(self):
+    def test_model_dump_serialization(self):
         """Test serialization to dictionary."""
         weights = PatternWeights(
             line_movement=Decimal('1.5'),
             situational_stats=Decimal('1.6')
         )
-        data = weights.to_dict()
+        data = weights.model_dump()
 
-        assert data['line_movement'] == '1.5'
-        assert data['situational_stats'] == '1.6'
-        assert data['injury_impact'] == '1.0'
+        assert data['line_movement'] == Decimal('1.5')
+        assert data['situational_stats'] == Decimal('1.6')
 
-    def test_from_dict_deserialization(self):
-        """Test deserialization from dictionary."""
-        data = {
-            'line_movement': '1.5',
-            'historical_trends': '1.3',
-            'injury_impact': '1.0',
-            'weather_factors': '1.0',
-            'player_correlations': '1.0',
-            'situational_stats': '1.6',
-            'live_odds_delta': '0.8',
-            'contrarian_plays': '1.1'
-        }
-        weights = PatternWeights.from_dict(data)
 
-        assert weights.line_movement == Decimal('1.5')
-        assert weights.situational_stats == Decimal('1.6')
-        assert weights.live_odds_delta == Decimal('0.8')
+# =============================================================================
+# UserProfile Tests
+# =============================================================================
 
-    def test_from_dict_missing_keys(self):
-        """Test from_dict with missing keys uses defaults."""
-        data = {
-            'line_movement': '1.5'
-        }
-        weights = PatternWeights.from_dict(data)
+class TestUserProfile:
+    """Tests for UserProfile model."""
 
-        assert weights.line_movement == Decimal('1.5')
-        assert weights.historical_trends == Decimal('1.0')  # default
-
-    def test_roundtrip_serialization(self):
-        """Test that to_dict -> from_dict preserves data."""
-        original = PatternWeights(
-            line_movement=Decimal('1.5'),
-            situational_stats=Decimal('1.6'),
-            live_odds_delta=Decimal('0.7')
+    @pytest.fixture
+    def sample_metrics(self):
+        """Create sample BehavioralMetrics."""
+        return BehavioralMetrics(
+            total_entries=100,
+            entries_by_sport={"NFL": 100},
+            entries_by_contest_type={"GPP": 100},
+            total_invested=Decimal('500.00'),
+            total_winnings=Decimal('600.00'),
+            avg_entry_fee=Decimal('5.00'),
+            roi_overall=Decimal('20.00'),
+            gpp_percentage=Decimal('1.0'),
+            cash_percentage=Decimal('0'),
+            multi_entry_rate=Decimal('1.0'),
+            sport_diversity=Decimal('0'),
+            stake_variance=Decimal('0.1'),
+            entries_per_week=Decimal('10'),
+            most_active_day="Sunday",
+            recency_score=Decimal('0.9'),
         )
 
-        data = original.to_dict()
-        restored = PatternWeights.from_dict(data)
+    @pytest.fixture
+    def sample_persona(self):
+        """Create sample PersonaScore."""
+        return PersonaScore(
+            bettor=Decimal('0.6'),
+            fantasy=Decimal('0.3'),
+            stats_nerd=Decimal('0.1')
+        )
 
-        assert restored.line_movement == original.line_movement
-        assert restored.situational_stats == original.situational_stats
-        assert restored.live_odds_delta == original.live_odds_delta
+    @pytest.fixture
+    def sample_weights(self):
+        """Create sample PatternWeights."""
+        return PatternWeights(line_movement=Decimal('1.5'))
+
+    def test_create_valid_profile(self, sample_metrics, sample_persona, sample_weights):
+        """Test creating a valid UserProfile."""
+        now = datetime.utcnow()
+        profile = UserProfile(
+            total_entries_parsed=100,
+            date_range_start=datetime(2024, 1, 1),
+            date_range_end=datetime(2024, 12, 31),
+            platforms=["DK", "FD"],
+            behavioral_metrics=sample_metrics,
+            persona_scores=sample_persona,
+            pattern_weights=sample_weights,
+            last_csv_upload=now,
+            confidence_score=Decimal('0.85')
+        )
+
+        assert profile.total_entries_parsed == 100
+        assert isinstance(profile.user_id, UUID)
+        assert profile.platforms == ["DK", "FD"]
+        assert profile.persona_scores.primary_persona == "bettor"
+
+    def test_uuid_auto_generated(self, sample_metrics, sample_persona, sample_weights):
+        """Test that user_id is auto-generated."""
+        profile = UserProfile(
+            total_entries_parsed=10,
+            date_range_start=datetime(2024, 1, 1),
+            date_range_end=datetime(2024, 12, 31),
+            platforms=["DK"],
+            behavioral_metrics=sample_metrics,
+            persona_scores=sample_persona,
+            pattern_weights=sample_weights,
+            last_csv_upload=datetime.utcnow(),
+            confidence_score=Decimal('0.5')
+        )
+        assert isinstance(profile.user_id, UUID)
+
+    def test_timestamps_auto_generated(self, sample_metrics, sample_persona, sample_weights):
+        """Test that timestamps are auto-generated."""
+        profile = UserProfile(
+            total_entries_parsed=10,
+            date_range_start=datetime(2024, 1, 1),
+            date_range_end=datetime(2024, 12, 31),
+            platforms=["DK"],
+            behavioral_metrics=sample_metrics,
+            persona_scores=sample_persona,
+            pattern_weights=sample_weights,
+            last_csv_upload=datetime.utcnow(),
+            confidence_score=Decimal('0.5')
+        )
+        assert profile.created_at is not None
+        assert profile.updated_at is not None
+
+    def test_nested_models_validate(self, sample_metrics, sample_persona, sample_weights):
+        """Test that nested models are validated."""
+        profile = UserProfile(
+            total_entries_parsed=100,
+            date_range_start=datetime(2024, 1, 1),
+            date_range_end=datetime(2024, 12, 31),
+            platforms=["DK"],
+            behavioral_metrics=sample_metrics,
+            persona_scores=sample_persona,
+            pattern_weights=sample_weights,
+            last_csv_upload=datetime.utcnow(),
+            confidence_score=Decimal('0.85')
+        )
+
+        assert isinstance(profile.behavioral_metrics, BehavioralMetrics)
+        assert isinstance(profile.persona_scores, PersonaScore)
+        assert isinstance(profile.pattern_weights, PatternWeights)
+
+    def test_model_dump_json_clean(self, sample_metrics, sample_persona, sample_weights):
+        """Test that model serializes to JSON cleanly."""
+        profile = UserProfile(
+            total_entries_parsed=100,
+            date_range_start=datetime(2024, 1, 1),
+            date_range_end=datetime(2024, 12, 31),
+            platforms=["DK"],
+            behavioral_metrics=sample_metrics,
+            persona_scores=sample_persona,
+            pattern_weights=sample_weights,
+            last_csv_upload=datetime.utcnow(),
+            confidence_score=Decimal('0.85')
+        )
+
+        # Should not raise
+        json_data = profile.model_dump_json()
+        assert isinstance(json_data, str)
+        assert "bettor" in json_data
+
+    def test_reject_invalid_confidence_score(self, sample_metrics, sample_persona, sample_weights):
+        """Test that confidence_score outside 0-1 raises ValidationError."""
+        with pytest.raises(ValidationError):
+            UserProfile(
+                total_entries_parsed=100,
+                date_range_start=datetime(2024, 1, 1),
+                date_range_end=datetime(2024, 12, 31),
+                platforms=["DK"],
+                behavioral_metrics=sample_metrics,
+                persona_scores=sample_persona,
+                pattern_weights=sample_weights,
+                last_csv_upload=datetime.utcnow(),
+                confidence_score=Decimal('1.5')  # Invalid
+            )

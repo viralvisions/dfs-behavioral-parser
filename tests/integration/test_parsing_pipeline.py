@@ -70,9 +70,9 @@ class TestParsingPipeline:
 
     def test_auto_parser_selection(self, fixtures_path):
         """Test automatic parser selection based on platform detection."""
-        for csv_file, expected_platform in [
-            ("sample_draftkings.csv", "DRAFTKINGS"),
-            ("sample_fanduel.csv", "FANDUEL"),
+        for csv_file, expected_platform, expected_source in [
+            ("sample_draftkings.csv", "DRAFTKINGS", "DK"),
+            ("sample_fanduel.csv", "FANDUEL", "FD"),
         ]:
             csv_path = fixtures_path / csv_file
             platform = detect_platform(csv_path)
@@ -84,7 +84,7 @@ class TestParsingPipeline:
 
             entries = parser.parse(csv_path)
             assert len(entries) > 0
-            assert all(e.source == expected_platform for e in entries)
+            assert all(e.source == expected_source for e in entries)
 
     def test_currency_parsing_accuracy(self, fixtures_path):
         """Test that currency values are parsed correctly as Decimal."""

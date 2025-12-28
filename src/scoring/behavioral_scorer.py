@@ -72,7 +72,6 @@ class BehavioralScorer:
         # Behavior patterns
         gpp_percentage = self._calculate_type_percentage(entries, "GPP")
         cash_percentage = self._calculate_type_percentage(entries, "CASH")
-        h2h_percentage = self._calculate_type_percentage(entries, "H2H")
         multi_entry_rate = self._calculate_multi_entry_rate(entries)
         sport_diversity = self._calculate_sport_diversity(entries)
         stake_variance = self._calculate_stake_variance(entries)
@@ -81,11 +80,6 @@ class BehavioralScorer:
         entries_per_week = self._calculate_entries_per_week(entries)
         most_active_day = self._calculate_most_active_day(entries)
         recency_score = self._calculate_recency_score(entries)
-
-        # Confidence score
-        confidence_score = self._calculate_confidence(
-            entries, entries_by_contest_type
-        )
 
         return BehavioralMetrics(
             total_entries=total_entries,
@@ -97,14 +91,12 @@ class BehavioralScorer:
             roi_overall=roi_overall,
             gpp_percentage=gpp_percentage,
             cash_percentage=cash_percentage,
-            h2h_percentage=h2h_percentage,
             multi_entry_rate=multi_entry_rate,
             sport_diversity=sport_diversity,
             stake_variance=stake_variance,
             entries_per_week=entries_per_week,
             most_active_day=most_active_day,
             recency_score=recency_score,
-            confidence_score=confidence_score,
         )
 
     def _count_by_sport(self, entries: List[DFSEntry]) -> Dict[str, int]:
